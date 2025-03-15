@@ -1,0 +1,17 @@
+# Example expectations library (documented here; actual expectations live in
+# each pipeline's YAML). This file demonstrates the "expectations as config"
+# pattern — keep reusable expectation sets here and reference them by name.
+expectations:
+  email_format:
+    - check: consistency
+      column: email
+      pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+
+  order_amount_range:
+    - check: range
+      column: amount
+      min: 0
+
+  unique_order_id:
+    - check: uniqueness
+      column: order_id
