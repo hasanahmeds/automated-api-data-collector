@@ -1,0 +1,241 @@
+{
+  "number": 5,
+  "title": "Automated API Data Collector",
+  "slug": "automated-api-data-collector",
+  "start": "2025-03-15",
+  "end": "2025-03-31",
+  "repo": "LeonxLJX/data-pipeline-etl",
+  "branch": "main",
+  "license": "MIT",
+  "note": "Config-driven Python ETL with REST ingestion and quality gates; storage choices differ from the earlier DuckDB project.",
+  "sha": "308668309f11137d6200a05d06d7c0346123dcdf",
+  "archive_sha256": "06d95f31c6803dbf753cd9cdf452a7dac41c953f858c7070d21cc95cfed4caea",
+  "imported_at": "2026-10-28T21:31:25.388426+00:00",
+  "history": "Reconstructed import history; dates are not dates of original development.",
+  "upstream_files": {
+    "upstream/.env.example": {
+      "sha256": "f544d4800a508bfc56bed557a2b2fe9314aa24b1493e55ee8e01e6e72569e713",
+      "mode": "100644",
+      "bytes": 740
+    },
+    "upstream/.github/workflows/ci.yml": {
+      "sha256": "50d0d0a14e563b67440634ea1811138a656a81629e4080265132829dbfca933e",
+      "mode": "100644",
+      "bytes": 644
+    },
+    "upstream/.gitignore": {
+      "sha256": "ca33ef44244e2240515b725544f4a628470b763f6eaa5338e1d25c9a3b888dcf",
+      "mode": "100644",
+      "bytes": 244
+    },
+    "upstream/LICENSE": {
+      "sha256": "fd8734a75b1b2337714111750363ca9036f6f2c5ea902d71e04c6721b537534e",
+      "mode": "100644",
+      "bytes": 1065
+    },
+    "upstream/README.md": {
+      "sha256": "eef52f65f39f35b58448fb500735ff233af8bfd358c8349d64c4c1cba16e6543",
+      "mode": "100644",
+      "bytes": 10863
+    },
+    "upstream/config/pipelines/example_orders.yaml": {
+      "sha256": "b1b5185fe2f73d0d456d9069a70bf7e6c1876bb62736de73565d3178da6df3a6",
+      "mode": "100644",
+      "bytes": 1084
+    },
+    "upstream/config/pipelines/example_users.yaml": {
+      "sha256": "fff7f8b3e8bf0c9677f7acaf3f9372027a7b83ffc3176ccfe185b7c3ac214715",
+      "mode": "100644",
+      "bytes": 702
+    },
+    "upstream/config/quality/expectations.yaml": {
+      "sha256": "a39e2037da1ff49fde9a65fcc19a4503672a12dbfff7a639ef3f4157de57d23d",
+      "mode": "100644",
+      "bytes": 494
+    },
+    "upstream/data/sample/orders.csv": {
+      "sha256": "7f6f991910f085ea40709d271aa3ed1ef02e1d847eb987561b1abacfdf9cdd1d",
+      "mode": "100644",
+      "bytes": 553
+    },
+    "upstream/data/sample/users.json": {
+      "sha256": "be25b68f153feba116cecb52774f257d007d56d7e0035447efb38f42d31ff8d3",
+      "mode": "100644",
+      "bytes": 310
+    },
+    "upstream/pyproject.toml": {
+      "sha256": "045da33180a6f2a1b59600459f084d47fb149297035bc780d85d12b8bafc3224",
+      "mode": "100644",
+      "bytes": 4043
+    },
+    "upstream/requirements.txt": {
+      "sha256": "11098503edea784508be571e2c88814432b5c6fe1ab920b89495595f99699871",
+      "mode": "100644",
+      "bytes": 350
+    },
+    "upstream/scripts/demo.py": {
+      "sha256": "8234078a3bebdf073091c5825780f360969e1f5a99c4fc60cf3b4d84ee6e4d5c",
+      "mode": "100644",
+      "bytes": 1433
+    },
+    "upstream/src/__init__.py": {
+      "sha256": "43df5e78b758190034513f11355f17874586d15846f493fdc98c9ac61baf67e8",
+      "mode": "100644",
+      "bytes": 320
+    },
+    "upstream/src/api/__init__.py": {
+      "sha256": "c525eb23ae72d324a2ff55d537580889ba5d40a43aff7f73407404518d07f3f7",
+      "mode": "100644",
+      "bytes": 11352
+    },
+    "upstream/src/api/main.py": {
+      "sha256": "a13cf6ae59e39fb5d4ab17b56428ea4a36b75bbdb764ba2e696e35751d5f8a4c",
+      "mode": "100644",
+      "bytes": 94
+    },
+    "upstream/src/cli.py": {
+      "sha256": "eb5e34a13c215fb59d933c5331461b663233abcb32be4b1bc81904faa4b87e8a",
+      "mode": "100644",
+      "bytes": 2942
+    },
+    "upstream/src/config.py": {
+      "sha256": "593749a70d01854f5647f479d9906cd0c85c2efb73b1649a9353fbda91923598",
+      "mode": "100644",
+      "bytes": 993
+    },
+    "upstream/src/config_loader.py": {
+      "sha256": "10b8c2cb298a142a21ec28cb78b0def674f1db0b1102e80ebfec089638353817",
+      "mode": "100644",
+      "bytes": 3754
+    },
+    "upstream/src/connectors/__init__.py": {
+      "sha256": "780c727399fc7f50a3b6f2c83a72847fec9841a0584a9131319e5fe680441f1a",
+      "mode": "100644",
+      "bytes": 6263
+    },
+    "upstream/src/engine.py": {
+      "sha256": "42afb001d4ecd84c318a8c475f2cb9373ccceaafc4d33269173d8c1690a3d86b",
+      "mode": "100644",
+      "bytes": 20004
+    },
+    "upstream/src/exceptions.py": {
+      "sha256": "b19cb2f058d6f13c4735a9bc54f65f372a1ee464a88fa6ffa4dc2304fef35147",
+      "mode": "100644",
+      "bytes": 1998
+    },
+    "upstream/src/lineage/__init__.py": {
+      "sha256": "32a29aee8348d2f4e675d4a0486a1b772dae7f2cb0d7e5c6d670f656f88de543",
+      "mode": "100644",
+      "bytes": 4443
+    },
+    "upstream/src/logging_config.py": {
+      "sha256": "578c884e42a829148df3b5ac19f55d40e4ba6a9d42128eee06e817e16b669de9",
+      "mode": "100644",
+      "bytes": 4623
+    },
+    "upstream/src/orchestration/__init__.py": {
+      "sha256": "08b387ed19a60fa6625a49290b12ba95c2ebd11f42f070aaf7fff0721d136852",
+      "mode": "100644",
+      "bytes": 29
+    },
+    "upstream/src/orchestration/airflow_dag.py": {
+      "sha256": "b2303f2476f39bb7ef85335dafa9e889f46bccb54d702fb4c3145604d1fb4a63",
+      "mode": "100644",
+      "bytes": 1788
+    },
+    "upstream/src/orchestration/scheduler.py": {
+      "sha256": "e40159437c937964edc2cc44f07e1ae9fb86c28c4df020591b827c1dd27be671",
+      "mode": "100644",
+      "bytes": 2091
+    },
+    "upstream/src/pipeline.py": {
+      "sha256": "0f39307327348801f4eb3ccdcaaebcb67dd31687decf9ef509a0e79265b677fc",
+      "mode": "100644",
+      "bytes": 3713
+    },
+    "upstream/src/quality/__init__.py": {
+      "sha256": "f3fbedcfead03e4ac917f1138426f3acede205fb9d333fcc453065f2e33a68c9",
+      "mode": "100644",
+      "bytes": 12393
+    },
+    "upstream/src/quality/reporter.py": {
+      "sha256": "73067a595c707259b18f13e6117c042f143f81805f4b290db28094513869e4eb",
+      "mode": "100644",
+      "bytes": 3226
+    },
+    "upstream/src/storage/__init__.py": {
+      "sha256": "f513816d6bc8ba48d2b627d2b192c781fde3e2f55bef0af811e70bd9d3f36eaa",
+      "mode": "100644",
+      "bytes": 5018
+    },
+    "upstream/src/transforms/__init__.py": {
+      "sha256": "59b9e5a95862af0617cefa128f0be6d50fd92188347fc0e89673d88637a229ba",
+      "mode": "100644",
+      "bytes": 8454
+    },
+    "upstream/tests/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": "100644",
+      "bytes": 0
+    },
+    "upstream/tests/conftest.py": {
+      "sha256": "c03839beb245eb5ff2da47ae25ee53624e20e1ae76c0e9f424b1300181dc58d7",
+      "mode": "100644",
+      "bytes": 1093
+    },
+    "upstream/tests/test_engine.py": {
+      "sha256": "d47f641e187e8501d9a825cdab73c7d25d0c4080e63c9abf43c02054ae8cee11",
+      "mode": "100644",
+      "bytes": 2827
+    },
+    "upstream/tests/test_idempotency.py": {
+      "sha256": "f08a24f465dad02e2418cc76fc81e9377bec730207df953570bac6e52846c9c8",
+      "mode": "100644",
+      "bytes": 2153
+    },
+    "upstream/tests/test_quality.py": {
+      "sha256": "82b482121e7c0b98ad3af5200a01732d62bbee5c83ea3a0f471d2f1bd24fb93e",
+      "mode": "100644",
+      "bytes": 1566
+    },
+    "upstream/tests/test_rules.py": {
+      "sha256": "939827d0e3719029ec05a3b551d412751c273001f210faa622559bf9189221b4",
+      "mode": "100644",
+      "bytes": 2182
+    }
+  },
+  "excluded_git_metadata": [],
+  "history_repair": {
+    "pattern": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "approved_calendar": true,
+    "seed": 20251028,
+    "previous_main": "a6d40177656b72d3da20d7817951ef73c36b1011",
+    "daily_counts": {
+      "2025-03-15": 2,
+      "2025-03-16": 2,
+      "2025-03-17": 4,
+      "2025-03-18": 5,
+      "2025-03-19": 2,
+      "2025-03-20": 1,
+      "2025-03-21": 3,
+      "2025-03-22": 3,
+      "2025-03-23": 0,
+      "2025-03-24": 1,
+      "2025-03-25": 1,
+      "2025-03-26": 3,
+      "2025-03-27": 1,
+      "2025-03-28": 1,
+      "2025-03-29": 0,
+      "2025-03-30": 4,
+      "2025-03-31": 1
+    },
+    "description": "Reconstructed import timestamps; not original development dates."
+  }
+}
