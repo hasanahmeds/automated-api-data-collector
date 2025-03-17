@@ -1,0 +1,10 @@
+order_id,customer,email,amount,currency,order_date,status
+1001,Alice,alice@example.com,129.50,USD,2026-09-01,completed
+1002,Bob,bob@example.com,49.00,USD,2026-09-01,completed
+1001,Alice,alice@example.com,129.50,USD,2026-09-01,completed
+1003,Carol,,75.25,USD,2026-09-02,pending
+1004,David,david@example.com,-10.00,USD,2026-09-02,refunded
+1005,Eve,eve@example.com,200.00,USD,2026/09/03,completed
+1006,Frank,frank@example.com,0.00,USD,2026-09-04,cancelled
+1007,Grace,,99.99,USD,2026-09-05,completed
+1008,Heidi,invalid-email,150.00,USD,2026-09-05,completed

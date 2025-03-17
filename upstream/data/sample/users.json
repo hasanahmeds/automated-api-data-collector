@@ -1,0 +1,8 @@
+[
+  {"user_id": 1, "name": "Alice", "country": "US"},
+  {"user_id": 2, "name": "bob", "country": "GB"},
+  {"user_id": 1, "name": "Alice", "country": "US"},
+  {"user_id": 3, "name": "Carol", "country": "FR"},
+  {"user_id": 4, "name": "dave", "country": "DE"},
+  {"user_id": 5, "name": "Eve", "country": "XX"}
+]

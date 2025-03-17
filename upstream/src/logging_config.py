@@ -118,3 +118,11 @@ def get_logger(name: str, **default_extra: Any) -> logging.LoggerAdapter:
         logger.info("started", extra={"pipeline_name": "orders"})
         # -> 2026-... INFO src.engine :: started | component="engine" pipeline_name="orders"
     """
+    if not _CONFIGURED:
+        configure_logging()
+    return _ExtraLoggerAdapter(logging.getLogger(name), default_extra)
+
+
+def log_duration_ms(started_at: float) -> float:
+    """Helper: return ms since ``started_at`` (a ``time.perf_counter()`` value)."""
+    return round((__import__("time").perf_counter() - started_at) * 1000, 2)
