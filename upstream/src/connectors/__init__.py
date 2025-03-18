@@ -158,3 +158,22 @@ class SqlConnector:
 
 
 def build_connector(spec: SourceSpec) -> Connector:
+    """Factory mapping a :class:`SourceSpec` to the right connector class."""
+    logger.info("building connector", extra={"source_type": spec.type})
+    if spec.type == "csv":
+        return CsvConnector(spec.path or "", encoding=spec.encoding, delimiter=spec.delimiter)
+    if spec.type == "json":
+        return JsonConnector(spec.path or "", orient=spec.json_orient)
+    if spec.type == "api":
+        return ApiConnector(
+            spec.url or "",
+            method=spec.method,
+            params=spec.params,
+            headers=spec.headers,
+            pagination=spec.pagination,
+            page_size=spec.page_size,
+        )
+    if spec.type == "sql":
+        return SqlConnector(spec.dsn or "", spec.query or "")
+    raise SourceError(f"unsupported source type: {spec.type}",
+                      context={"source_type": spec.type})
