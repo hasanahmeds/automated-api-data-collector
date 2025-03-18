@@ -198,3 +198,83 @@ class Engine:
             row = conn.execute(
                 sa.text("SELECT run_id, fingerprint, rows_out, quality_score FROM pipeline_runs "
                         "WHERE pipeline=:p AND status='success' ORDER BY started_at DESC LIMIT 1"),
+                {"p": spec.name},
+            ).first()
+        if row is None:
+            return None
+        return row[0], row[1], row[2], row[3]
+
+    def _record_run(self, engine: sa.Engine, result: PipelineResult, fingerprint: str) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO pipeline_runs (run_id, pipeline, fingerprint, status, rows_in, rows_out, quality_score, started_at, finished_at) "
+                    "VALUES (:r, :p, :f, :s, :ri, :ro, :q, :st, :ft) "
+                    "ON CONFLICT(run_id) DO UPDATE SET status=excluded.status, rows_in=excluded.rows_in, "
+                    "rows_out=excluded.rows_out, quality_score=excluded.quality_score, finished_at=excluded.finished_at"
+                ),
+                {"r": result.run_id, "p": result.pipeline, "f": fingerprint, "s": result.status,
+                 "ri": result.rows_in, "ro": result.rows_out, "q": result.quality_score,
+                 "st": now, "ft": now},
+            )
+
+    # ------------------------------------------------------------------ #
+    # Public API
+    # ------------------------------------------------------------------ #
+    def run(self, spec: PipelineSpec, run_id: str | None = None, force: bool = False) -> PipelineResult:
+        started = time.perf_counter()
+        run_id = run_id or uuid.uuid4().hex[:12]
+        log_ctx: dict[str, Any] = {"pipeline_name": spec.name, "run_id": run_id, "force": force}
+        logger.info("pipeline run starting", extra=log_ctx)
+
+        lineage = LineageTracker(self.settings.lineage_dir)
+        lineage.run_id = run_id
+        marker_engine = self._marker_db(spec.sink)
+
+        try:
+            # ---- 1. source -------------------------------------------------
+            logger.info("step=source start", extra={**log_ctx, "step": "source", "source_type": spec.source.type})
+            try:
+                df = build_connector(spec.source).read()
+            except PipelineError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                raise SourceError(
+                    f"failed to read source: {exc}",
+                    context={"pipeline": spec.name, "source": spec.source.model_dump()},
+                ) from exc
+            rows_in = len(df)
+            lineage.source(spec.source.model_dump(), rows_in)
+            fingerprint = compute_fingerprint(spec, df)
+            logger.info("step=source done",
+                        extra={**log_ctx, "step": "source", "rows_in": rows_in,
+                               "duration_ms": log_duration_ms(started)})
+
+            # ---- idempotent skip
+            prev = self._last_fingerprint(marker_engine, spec)
+            if not force and prev is not None and prev[1] == fingerprint:
+                record = lineage.finish(spec.name, "skipped")
+                result = PipelineResult(run_id=run_id, pipeline=spec.name, status="skipped",
+                                        rows_in=rows_in, rows_out=prev[2], quality_score=prev[3],
+                                        lineage=record, duration_ms=(time.perf_counter() - started) * 1000)
+                self._record_run(marker_engine, result, fingerprint)
+                self.metrics.record(result)
+                logger.info("pipeline run skipped (fingerprint match)",
+                            extra={**log_ctx, "status": "skipped",
+                                   "duration_ms": log_duration_ms(started)})
+                return result
+
+            # ---- 2. transforms ---------------------------------------------
+            logger.info("step=transform start", extra={**log_ctx, "step": "transform",
+                                                        "rules": [r.rule for r in spec.transforms]})
+            try:
+                df, events = apply_all(df, spec.transforms)
+            except PipelineError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                raise TransformError(
+                    f"transform failed: {exc}",
+                    context={"pipeline": spec.name, "rule_index": "?"},
+                ) from exc
+            for ev in events:
