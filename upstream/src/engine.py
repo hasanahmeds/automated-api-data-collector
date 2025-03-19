@@ -278,3 +278,123 @@ class Engine:
                     context={"pipeline": spec.name, "rule_index": "?"},
                 ) from exc
             for ev in events:
+                lineage.transform(ev)
+            logger.info("step=transform done",
+                        extra={**log_ctx, "step": "transform", "rows_out": len(df),
+                               "events": len(events),
+                               "duration_ms": log_duration_ms(started)})
+
+            # ---- 3. quality gate -------------------------------------------
+            logger.info("step=quality start", extra={**log_ctx, "step": "quality",
+                                                     "expectations": len(spec.quality.expectations)})
+            try:
+                checks, score = evaluate(df, spec.quality.expectations)
+            except PipelineError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                raise QualityGateError(
+                    f"quality evaluation failed: {exc}",
+                    context={"pipeline": spec.name},
+                ) from exc
+            min_score = spec.quality.min_score or self.settings.default_quality_threshold
+            passed = score >= min_score
+            lineage.quality(score, len(checks), passed)
+            logger.info("step=quality done",
+                        extra={**log_ctx, "step": "quality", "score": score,
+                               "min_score": min_score, "passed": passed,
+                               "duration_ms": log_duration_ms(started)})
+
+            if not passed and spec.quality.abort_on_fail:
+                record = lineage.finish(spec.name, "quality_failed")
+                result = PipelineResult(run_id=run_id, pipeline=spec.name, status="quality_failed",
+                                        rows_in=rows_in, rows_out=len(df), dropped=rows_in - len(df),
+                                        quality_score=score, gate_passed=False,
+                                        checks=[c.to_dict() for c in checks],
+                                        duration_ms=(time.perf_counter() - started) * 1000, lineage=record)
+                self._record_run(marker_engine, result, fingerprint)
+                self.metrics.record(result)
+                failed_checks = [c.to_dict() for c in checks if not c.passed]
+                logger.warning("pipeline run aborted by quality gate",
+                               extra={**log_ctx, "status": "quality_failed", "score": score,
+                                      "failed_checks": failed_checks,
+                                      "duration_ms": log_duration_ms(started)})
+                return result
+
+            # ---- 4. sink ----------------------------------------------------
+            logger.info("step=sink start", extra={**log_ctx, "step": "sink",
+                                                   "sink_type": spec.sink.type})
+            try:
+                if spec.sink.type in ("csv", "parquet"):
+                    target = write_warehouse(df, spec.sink, run_id, self.settings.output_dir)
+                    lineage.sink(spec.sink.model_dump(), len(df), "write")
+                    sink_info = f"file:{target}"
+                else:
+                    table = create_table_from_df(marker_engine, spec.sink.table, df, spec.sink.primary_key)
+                    mode = "upsert" if spec.sink.primary_key else "append"
+                    written = upsert_rows(marker_engine, table, df, spec.sink.primary_key)
+                    lineage.sink(spec.sink.model_dump(), written, mode)
+                    sink_info = f"db:{spec.sink.table} ({mode})"
+            except PipelineError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                raise SinkError(
+                    f"failed to write to sink: {exc}",
+                    context={"pipeline": spec.name, "sink": spec.sink.model_dump()},
+                ) from exc
+            logger.info("step=sink done",
+                        extra={**log_ctx, "step": "sink", "sink": sink_info,
+                               "rows_written": len(df),
+                               "duration_ms": log_duration_ms(started)})
+
+            # ---- 5. report
+            report = build_report(spec.name, run_id, score, passed, checks, rows_in, len(df),
+                                  (time.perf_counter() - started) * 1000)
+            report["sink"] = sink_info
+            json_path = write_json(report, self.settings.reports_dir / f"{spec.name}_{run_id}.json")
+            html_path = write_html(report, self.settings.reports_dir / f"{spec.name}_{run_id}.html")
+
+            record = lineage.finish(spec.name, "success")
+            result = PipelineResult(run_id=run_id, pipeline=spec.name, status="success",
+                                    rows_in=rows_in, rows_out=len(df), dropped=rows_in - len(df),
+                                    quality_score=score, gate_passed=True,
+                                    checks=[c.to_dict() for c in checks],
+                                    duration_ms=(time.perf_counter() - started) * 1000,
+                                    lineage=record, report_path=str(html_path))
+            self._record_run(marker_engine, result, fingerprint)
+            self.metrics.record(result)
+            logger.info("pipeline run succeeded",
+                        extra={**log_ctx, "status": "success", "rows_in": rows_in,
+                               "rows_out": len(df), "score": score,
+                               "duration_ms": log_duration_ms(started)})
+            return result
+
+        except PipelineError as exc:
+            record = lineage.finish(spec.name, "failed")
+            result = PipelineResult(run_id=run_id, pipeline=spec.name, status="failed",
+                                    lineage=record,
+                                    duration_ms=(time.perf_counter() - started) * 1000,
+                                    error=f"{type(exc).__name__}: {exc.message}")
+            self._record_run(marker_engine, result, "")
+            self.metrics.record(result)
+            logger.error("pipeline run failed",
+                         extra={**log_ctx, "status": "failed", "error": exc.message,
+                                "error_type": type(exc).__name__, "context": exc.context,
+                                "duration_ms": log_duration_ms(started)},
+                         exc_info=True)
+            return result
+        except Exception as exc:  # noqa: BLE001  -- last-resort guard
+            record = lineage.finish(spec.name, "failed")
+            result = PipelineResult(run_id=run_id, pipeline=spec.name, status="failed",
+                                    lineage=record,
+                                    duration_ms=(time.perf_counter() - started) * 1000,
+                                    error=f"{type(exc).__name__}: {exc}")
+            self._record_run(marker_engine, result, "")
+            self.metrics.record(result)
+            logger.error("pipeline run failed (unexpected)",
+                         extra={**log_ctx, "status": "failed",
+                                "error_type": type(exc).__name__, "error": str(exc),
+                                "duration_ms": log_duration_ms(started)},
+                         exc_info=True)
+            return result
+
+    def list_runs(self, pipeline: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
