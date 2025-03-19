@@ -398,3 +398,18 @@ class Engine:
             return result
 
     def list_runs(self, pipeline: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        """List recent runs from the marker table, newest first."""
+        stmt = "SELECT run_id, pipeline, status, rows_in, rows_out, quality_score, started_at FROM pipeline_runs"
+        params: dict[str, Any] = {}
+        if pipeline:
+            stmt += " WHERE pipeline=:p"
+            params["p"] = pipeline
+        stmt += " ORDER BY started_at DESC LIMIT :l"
+        params["l"] = limit
+        with self._engine.connect() as conn:
+            rows = conn.execute(sa.text(stmt), params).fetchall()
+        return [dict(r._mapping) for r in rows]
+
+    def get_lineage(self, run_id: str) -> dict[str, Any] | None:
+        """Return the lineage JSON for a run, or None if not found."""
+        return load_lineage(self.settings.lineage_dir, run_id)
