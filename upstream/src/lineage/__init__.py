@@ -118,3 +118,5 @@ def list_runs(lineage_dir: Path, limit: int = 50) -> list[dict[str, Any]]:
             "duration_ms": data["duration_ms"],
         })
         if len(runs) >= limit:
+            break
+    return runs
