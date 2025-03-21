@@ -38,3 +38,21 @@ def run_scheduler() -> None:
     engine = Engine(settings)
     specs = load_all_pipelines(settings.pipelines_dir)
     logger.info("scheduler started",
+                extra={"pipelines": list(specs), "count": len(specs)})
+    while True:
+        for spec in specs.values():
+            if not spec.schedule:
+                continue
+            interval = _parse_schedule(spec.schedule)
+            if interval is not None:
+                result = engine.run(spec)
+                logger.info("scheduler tick",
+                            extra={"pipeline": spec.name, "status": result.status,
+                                   "rows_out": result.rows_out})
+                time.sleep(interval)
+            elif spec.schedule == "@daily":
+                if _is_due_daily("00:00"):
+                    result = engine.run(spec)
+                    logger.info("scheduler daily tick",
+                                extra={"pipeline": spec.name, "status": result.status})
+        time.sleep(10)
