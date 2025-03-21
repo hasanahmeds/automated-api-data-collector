@@ -38,3 +38,25 @@ DEFAULT_ARGS = {
     "retries": 1,
     "retry_delay": timedelta(minutes=2),
     "start_date": days_ago(1),
+}
+
+with DAG(
+    dag_id="data_pipeline_etl_example",
+    description="Run config-driven ETL pipelines (orders + users) on a schedule.",
+    default_args=DEFAULT_ARGS,
+    schedule="@daily",
+    catchup=False,
+    tags=["etl", "data-governance"],
+) as dag:
+    run_orders = PythonOperator(
+        task_id="run_orders",
+        python_callable=_run_pipeline,
+        op_kwargs={"pipeline": "example_orders"},
+    )
+    run_users = PythonOperator(
+        task_id="run_users",
+        python_callable=_run_pipeline,
+        op_kwargs={"pipeline": "example_users"},
+    )
+
+    run_orders >> run_users
