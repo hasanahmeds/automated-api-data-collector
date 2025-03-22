@@ -78,3 +78,21 @@ class ETLPipeline:
         if target.endswith(".csv"):
             df.to_csv(target, index=False)
         elif target.endswith(".parquet"):
+            df.to_parquet(target, index=False)
+        logger.info(f"   → Loaded {self.rows_out} rows")
+
+    def run(self, source: str, target: str, validation_rules: Optional[dict] = None):
+        """Run the full pipeline."""
+        self.start_time = datetime.now()
+        logger.info(f"🚀 Starting pipeline: {self.name}")
+
+        df = self.extract(source)
+        df = self.clean(df)
+        if validation_rules:
+            df = self.validate(df, validation_rules)
+        df = self.transform(df)
+        self.load(df, target)
+
+        elapsed = (datetime.now() - self.start_time).total_seconds()
+        logger.info(f"✅ Pipeline complete in {elapsed:.1f}s | {self.rows_in} → {self.rows_out} rows")
+        return df
