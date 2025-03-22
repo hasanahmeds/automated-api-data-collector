@@ -198,3 +198,92 @@ def check_schema(df: pd.DataFrame, exp: ExpectationSpec) -> CheckResult:
         expected_key = _DTYPE_CHECKS.get(str(expected_dtype).lower())
         if expected_key is None:
             logger.warning("schema check: unknown expected dtype",
+                           extra={"column": name, "expected_dtype": expected_dtype})
+            continue
+        ok = (
+            (expected_key == "int" and pd.api.types.is_integer_dtype(df[name]))
+            or (expected_key == "float" and pd.api.types.is_float_dtype(df[name]))
+            or (expected_key == "str" and df[name].dtype == object)
+            or (expected_key == "bool" and pd.api.types.is_bool_dtype(df[name]))
+            or (expected_key == "datetime" and pd.api.types.is_datetime64_any_dtype(df[name]))
+        )
+        if ok:
+            partial += 0.5
+        else:
+            wrong_type.append(f"{name}: expected {expected_dtype}, got {actual}")
+    score = round(partial / len(expected) * 100, 2)
+    passed = not missing and not wrong_type
+    samples = (missing + wrong_type)[:5]
+    detail = (
+        f"{len(expected) - len(missing) - len(wrong_type)}/{len(expected)} columns match"
+        + (f"; missing={missing}" if missing else "")
+        + (f"; wrong_type={wrong_type}" if wrong_type else "")
+    )
+    return CheckResult("schema", None, passed, score, detail, samples)
+
+
+def check_referential(df: pd.DataFrame, exp: ExpectationSpec) -> CheckResult:
+    """Pass when every non-null value in ``column`` exists in the first
+    column of the CSV at ``reference_path``. Used for foreign-key integrity
+    checks (e.g. ``orders.customer_id`` must exist in ``customers.csv``)."""
+    col = exp.column
+    if not col or col not in df.columns:
+        return CheckResult("referential", col, False, 0.0, f"column '{col}' missing")
+    if not exp.reference_path:
+        return CheckResult("referential", col, False, 0.0,
+                           "reference_path not configured")
+    ref_path = Path(exp.reference_path)
+    if not ref_path.exists():
+        return CheckResult("referential", col, False, 0.0,
+                           f"reference file not found: {ref_path}")
+    try:
+        ref_df = pd.read_csv(ref_path)
+        valid_set = set(ref_df.iloc[:, 0].dropna().tolist())
+    except Exception as exc:  # noqa: BLE001
+        logger.error("referential check failed to load reference",
+                     extra={"reference_path": str(ref_path), "error": str(exc)})
+        return CheckResult("referential", col, False, 0.0,
+                           f"failed to load reference: {exc}")
+    s = df[col]
+    non_null = s.dropna()
+    if len(non_null) == 0:
+        return CheckResult("referential", col, False, 0.0,
+                           f"column '{col}' has no non-null values")
+    matches = non_null.isin(valid_set)
+    ratio = float(matches.mean())
+    samples = non_null[~matches].head(5).tolist()
+    return CheckResult("referential", col, ratio >= 0.99, round(ratio * 100, 2),
+                       f"{ratio:.1%} of '{col}' values exist in reference "
+                       f"({len(valid_set)} keys)", samples)
+
+
+CHECKERS: dict[str, Any] = {
+    "completeness": check_completeness,
+    "consistency": check_consistency,
+    "uniqueness": check_uniqueness,
+    "range": check_range,
+    "volume": check_volume,
+    "freshness": check_freshness,
+    "schema": check_schema,
+    "referential": check_referential,
+}
+
+
+def evaluate(df: pd.DataFrame, expectations: list[ExpectationSpec]) -> tuple[list[CheckResult], float]:
+    """Run every expectation against ``df`` and return (results, weighted_score).
+
+    Unknown check types raise ``KeyError`` (caught and surfaced by the engine
+    as a :class:`QualityGateError`).
+    """
+    results: list[CheckResult] = []
+    total_w, weighted = 0.0, 0.0
+    for exp in expectations:
+        fn = CHECKERS.get(exp.check)
+        if fn is None:
+            raise KeyError(f"unknown quality check: {exp.check!r}")
+        result = fn(df, exp)
+        results.append(result)
+        total_w += exp.weight
+        weighted += result.score * exp.weight
+    score = round(weighted / total_w, 2) if total_w else 100.0
+    return results, score
