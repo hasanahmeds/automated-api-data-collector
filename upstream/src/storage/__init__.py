@@ -38,3 +38,83 @@ def _sa_type(dtype: Any) -> sa.types.TypeEngine:
 def create_table_from_df(
     engine: sa.Engine,
     table_name: str,
+    df: pd.DataFrame,
+    primary_key: list[str] | None = None,
+) -> sa.Table:
+    """Create ``table_name`` from ``df`` dtypes if it doesn't already exist."""
+    metadata = sa.MetaData()
+    cols: list[sa.Column[Any]] = []
+    pk = primary_key or []
+    for name, dtype in df.dtypes.items():
+        cols.append(
+            sa.Column(str(name), _sa_type(dtype), primary_key=(name in pk))
+        )
+    table = sa.Table(table_name, metadata, *cols)
+    try:
+        table.create(engine, checkfirst=True)
+    except Exception as exc:  # noqa: BLE001
+        raise SinkError(
+            f"failed to create table '{table_name}': {exc}",
+            context={"table": table_name, "primary_key": pk},
+        ) from exc
+    logger.info("table ready", extra={"table": table_name, "primary_key": pk})
+    return table
+
+
+def _clean(value: Any) -> Any:
+    """Convert pandas NaN/NaT to SQL NULL before binding."""
+    import numpy as np
+
+    if value is None:
+        return None
+    if isinstance(value, float) and np.isnan(value):
+        return None
+    if isinstance(value, np.floating) and np.isnan(value):
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return value
+
+
+def upsert_rows(
+    engine: sa.Engine,
+    table: sa.Table,
+    df: pd.DataFrame,
+    primary_key: list[str] | None,
+) -> int:
+    """Insert rows idempotently.
+
+    * with a primary key -> dialect-specific upsert (ON CONFLICT DO UPDATE);
+    * without a primary key -> append (the engine handles run-level dedupe
+      via the run-marker table).
+    """
+    records = [{k: _clean(v) for k, v in r.items()} for r in df.to_dict("records")]
+    if not records:
+        return 0
+    pk = primary_key or []
+    try:
+        if pk and all(p in table.columns for p in pk):
+            dialect = engine.dialect.name
+            if dialect == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert as dialect_insert
+            else:
+                from sqlalchemy.dialects.sqlite import insert as dialect_insert
+            stmt = dialect_insert(table).values(records)
+            update = {c.name: getattr(stmt.excluded, c.name)
+                      for c in table.columns if c.name not in pk}
+            stmt = stmt.on_conflict_do_update(index_elements=pk, set_=update)
+            with engine.begin() as conn:
+                conn.execute(stmt)
+        else:
+            with engine.begin() as conn:
+                conn.execute(table.insert(), records)
+    except Exception as exc:  # noqa: BLE001
+        raise SinkError(
+            f"failed to write {len(records)} records: {exc}",
+            context={"table": table.name, "primary_key": pk},
+        ) from exc
+    logger.info("rows written",
+                extra={"table": table.name, "rows": len(records), "mode": "upsert" if pk else "append"})
