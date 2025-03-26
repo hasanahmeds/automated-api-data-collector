@@ -198,3 +198,19 @@ _HANDLERS: dict[str, Any] = {
     "validate": apply_validate,
 }
 
+
+def apply_rule(df: pd.DataFrame, rule: RuleSpec) -> tuple[pd.DataFrame, RuleEvent]:
+    fn = _HANDLERS.get(rule.rule)
+    if fn is None:
+        raise TransformError(f"unknown rule: {rule.rule}",
+                             context={"rule": rule.rule})
+    return fn(df, rule)
+
+
+def apply_all(df: pd.DataFrame, rules: list[RuleSpec]) -> tuple[pd.DataFrame, list[RuleEvent]]:
+    """Apply each rule in order; collect events for lineage."""
+    events: list[RuleEvent] = []
+    for idx, rule in enumerate(rules):
+        df, event = apply_rule(df, rule)
+        events.append(event)
+    return df, events
