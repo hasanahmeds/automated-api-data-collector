@@ -118,3 +118,30 @@ def upsert_rows(
         ) from exc
     logger.info("rows written",
                 extra={"table": table.name, "rows": len(records), "mode": "upsert" if pk else "append"})
+    return len(records)
+
+
+def write_warehouse(
+    df: pd.DataFrame,
+    sink: SinkSpec,
+    run_id: str,
+    output_dir: Any,
+) -> str:
+    """Write to CSV or Parquet under the output dir; returns the file path."""
+    path = sink.path or str(output_dir / f"{sink.table or 'export'}_{run_id}")
+    try:
+        if sink.type == "parquet":
+            if not path.endswith(".parquet"):
+                path += ".parquet"
+            df.to_parquet(path, index=False)
+        else:
+            if not path.endswith(".csv"):
+                path += ".csv"
+            df.to_csv(path, index=False)
+    except Exception as exc:  # noqa: BLE001
+        raise SinkError(
+            f"failed to write file sink: {exc}",
+            context={"path": path, "type": sink.type},
+        ) from exc
+    logger.info("warehouse written", extra={"path": path, "rows": len(df), "type": sink.type})
+    return path
