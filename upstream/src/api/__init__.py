@@ -198,3 +198,63 @@ def create_app() -> FastAPI:
         spec = _get_pipeline(app, name)
         try:
             return _validate_spec(spec)
+        except PipelineError as exc:
+            raise HTTPException(422, exc.to_dict()) from exc
+
+    # ------------------------------------------------------------------ #
+    # Global run history & per-run lineage
+    # ------------------------------------------------------------------ #
+    @app.get("/api/runs")
+    def runs(pipeline: str | None = None,
+             limit: int = Query(50, ge=1, le=500)) -> list[dict[str, Any]]:
+        return app.state.engine.list_runs(pipeline=pipeline, limit=limit)
+
+    @app.get("/api/runs/{run_id}/lineage")
+    def lineage(run_id: str) -> dict[str, Any]:
+        data = app.state.engine.get_lineage(run_id)
+        if data is None:
+            raise HTTPException(404, f"No lineage for run {run_id}")
+        return data
+
+    # ------------------------------------------------------------------ #
+    # Metrics
+    # ------------------------------------------------------------------ #
+    @app.get("/api/metrics")
+    def metrics() -> str:
+        """Prometheus text format for Grafana + in-memory engine counters."""
+        runs = app.state.engine.list_runs(limit=500)
+        lines = [
+            "# HELP etl_rows_processed Total rows processed per pipeline.",
+            "# TYPE etl_rows_processed counter",
+            "# HELP etl_quality_score Latest quality score per pipeline.",
+            "# TYPE etl_quality_score gauge",
+            "# HELP etl_pipeline_duration_ms Total pipeline duration in ms (in-process).",
+            "# TYPE etl_pipeline_duration_ms counter",
+        ]
+        latest: dict[str, dict[str, Any]] = {}
+        for r in runs:
+            latest[r["pipeline"]] = r
+        for name, r in latest.items():
+            lines.append(f'etl_rows_processed{{pipeline="{name}"}} {r["rows_in"]}')
+            lines.append(f'etl_quality_score{{pipeline="{name}"}} {r["quality_score"] or 0}')
+        m = app.state.engine.metrics.to_dict()
+        lines.append(f"# in-memory engine counters (process-local)")
+        lines.append(f'etl_rows_processed_total {m["rows_processed"]}')
+        lines.append(f'etl_rows_rejected_total {m["rows_rejected"]}')
+        lines.append(f'etl_rows_written_total {m["rows_written"]}')
+        lines.append(f'etl_quality_score_avg {m["quality_score"]}')
+        lines.append(f'etl_pipeline_duration_ms_total {m["pipeline_duration_ms"]}')
+        lines.append(f'etl_runs_total {m["runs_total"]}')
+        for status, count in m["runs_by_status"].items():
+            lines.append(f'etl_runs_by_status{{status="{status}"}} {count}')
+        return "\n".join(lines) + "\n"
+
+    @app.get("/api/metrics/json")
+    def metrics_json() -> dict[str, Any]:
+        """Structured metrics for dashboards / integrations."""
+        return app.state.engine.metrics.to_dict()
+
+    return app
+
+
+app = create_app()
