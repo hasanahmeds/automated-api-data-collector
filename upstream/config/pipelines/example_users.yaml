@@ -1,0 +1,35 @@
+# Example users pipeline — JSON -> normalize -> quality gate -> CSV export.
+name: example_users
+description: Users from sample JSON with normalization and consistency checks.
+
+source:
+  type: json
+  path: data/sample/users.json
+
+transforms:
+  - rule: dedup
+    columns: [user_id]
+  - rule: normalize
+    columns: [name]
+    format: lower strip
+  - rule: validate
+    columns: [country]
+    allowed: [US, GB, FR, DE]
+
+quality:
+  expectations:
+    - check: uniqueness
+      column: user_id
+    - check: consistency
+      column: country
+      values: [US, GB, FR, DE]
+    - check: volume
+      min_rows: 1
+  min_score: 80
+
+sink:
+  type: csv
+  table: users
+  path: data/output/users
+
+schedule: "@daily"
