@@ -38,3 +38,6 @@ def orders_spec(settings):
     from src.config_loader import load_pipeline
 
     ROOT = Path(__file__).resolve().parents[1]
+    spec = load_pipeline(ROOT / "config" / "pipelines" / "example_orders.yaml")
+    spec.sink.database_url = settings.database_url  # isolate from the repo's data dir
+    return spec
