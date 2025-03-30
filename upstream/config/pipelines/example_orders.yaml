@@ -1,0 +1,51 @@
+# Example orders pipeline — CSV -> clean -> quality gate -> SQLite (upsert).
+name: example_orders
+description: Orders from the sample CSV, deduplicated, cleaned and loaded with a quality gate.
+
+source:
+  type: csv
+  path: data/sample/orders.csv
+
+transforms:
+  - rule: dedup
+    columns: [order_id]
+    keep: first
+  - rule: drop_null
+    columns: [email]
+  - rule: normalize
+    columns: [order_date]
+    format: date
+  - rule: coerce
+    columns: [amount]
+    type: float
+  - rule: validate
+    columns: [email]
+    pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+  - rule: filter
+    condition: 'amount >= 0'
+
+quality:
+  expectations:
+    - check: completeness
+      column: email
+      min: 0.95
+    - check: consistency
+      column: email
+      pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+    - check: uniqueness
+      column: order_id
+    - check: range
+      column: amount
+      min: 0
+    - check: volume
+      min_rows: 5
+  min_score: 80
+  abort_on_fail: true
+
+sink:
+  type: sqlite
+  table: orders
+  database_url: sqlite:///data/pipeline.db
+  primary_key: [order_id]
+
+schedule: every 60s
