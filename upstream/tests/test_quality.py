@@ -38,3 +38,11 @@ def test_volume():
     checks, _ = evaluate(df, [ExpectationSpec(check="volume", min_rows=10)])
     assert not checks[0].passed
 
+
+def test_weighted_score():
+    df = pd.DataFrame({"a": [1, 2, 3]})
+    checks, score = evaluate(df, [
+        ExpectationSpec(check="volume", min_rows=1, weight=1.0),
+        ExpectationSpec(check="uniqueness", column="a", weight=3.0),
+    ])
+    assert score == 100.0
